@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 /// Root view with tab-based navigation.
 /// Designed with large, clear icons and labels for accessibility.
@@ -14,7 +13,6 @@ struct ContentView: View {
 
     @EnvironmentObject private var deepLinkManager: DeepLinkManager
     @StateObject private var cameraManager = CameraManager()
-    @StateObject private var faceRecognitionService = FaceRecognitionService()
     @StateObject private var clipManager = ClipManager()
     @StateObject private var fallDetectionService = FallDetectionService()
     @State private var recordingManager: RecordingManager?
@@ -28,7 +26,6 @@ struct ContentView: View {
                         MainCameraView(
                             cameraManager: cameraManager,
                             recordingManager: recordingManager,
-                            faceRecognitionService: faceRecognitionService,
                             clipManager: clipManager
                         )
                         .tabItem {
@@ -43,11 +40,11 @@ struct ContentView: View {
                                 Text("Clips")
                             }
 
-                        // People Tab
-                        PeopleListView(cameraManager: cameraManager)
+                        // Contacts tab
+                        ContactsView()
                             .tabItem {
-                                Image(systemName: "person.2.fill")
-                                Text("People")
+                                Image(systemName: "person.3.fill")
+                                Text("Contacts")
                             }
                         
                         // Instructions Tab (Zoom Call Transcripts)
@@ -90,7 +87,6 @@ struct ContentView: View {
 struct SettingsView: View {
     @ObservedObject var fallDetectionService: FallDetectionService
     @AppStorage("recordingDuration") private var maxRecordingMinutes: Double = 5
-    @AppStorage("faceMatchSensitivity") private var matchSensitivity: Double = 0.35
     @AppStorage("fallDetectionEnabled") private var fallDetectionEnabled: Bool = false
 
     var body: some View {
@@ -160,25 +156,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Match Sensitivity")
-                                .font(.system(size: 16, weight: .medium))
-                            Spacer()
-                            Text(sensitivityLabel)
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(value: $matchSensitivity, in: 0.1...0.6, step: 0.05)
-                            .tint(.blue)
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Face Recognition")
-                } footer: {
-                    Text("Higher sensitivity means stricter matching (fewer false positives). Lower means more lenient (may match incorrectly).")
-                }
-
-                Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Memory Recall", systemImage: "clock.arrow.circlepath")
                             .font(.system(size: 16, weight: .semibold))
@@ -194,14 +171,6 @@ struct SettingsView: View {
                             .font(.system(size: 14))
                             .foregroundColor(.secondary)
 
-                        Divider()
-
-                        Label("Face Recognition", systemImage: "person.viewfinder")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Register friends and family in the People tab. When the camera sees them, their name will appear above their head.")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary)
-                        
                         Divider()
                         
                         Label("Fall Detection", systemImage: "figure.fall")
@@ -242,16 +211,8 @@ struct SettingsView: View {
         }
     }
 
-    private var sensitivityLabel: String {
-        if matchSensitivity < 0.2 { return "Very Lenient" }
-        if matchSensitivity < 0.3 { return "Lenient" }
-        if matchSensitivity < 0.4 { return "Normal" }
-        if matchSensitivity < 0.5 { return "Strict" }
-        return "Very Strict"
-    }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Person.self, inMemory: true)
 }

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 import UserNotifications
 
 // MARK: - App Delegate for Notification Handling
@@ -81,7 +80,6 @@ struct treehacksApp: App {
                     handleIncomingURL(url)
                 }
         }
-        .modelContainer(sharedModelContainer)
     }
     
     private func handleIncomingURL(_ url: URL) {
