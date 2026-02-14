@@ -56,10 +56,53 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 struct treehacksApp: App {
     
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var deepLinkManager = DeepLinkManager.shared
+
+    var sharedModelContainer: ModelContainer = {
+        let schema = Schema([Person.self, MeetingTranscript.self])
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false
+        )
+
+        do {
+            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+        } catch {
+            fatalError("Could not create ModelContainer: \(error)")
+        }
+    }()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(deepLinkManager)
+                .onOpenURL { url in
+                    handleIncomingURL(url)
+                }
         }
     }
+    
+    private func handleIncomingURL(_ url: URL) {
+        guard url.scheme == "treehacks",
+              url.host == "join",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let sessionName = components.queryItems?.first(where: { $0.name == "session" })?.value else {
+            return
+        }
+        
+        print("Deep link received: joining session '\(sessionName)'")
+        deepLinkManager.pendingSessionName = sessionName
+        deepLinkManager.shouldShowZoomCall = true
+    }
+}
+
+// MARK: - Deep Link Manager
+
+class DeepLinkManager: ObservableObject {
+    static let shared = DeepLinkManager()
+    
+    @Published var shouldShowZoomCall = false
+    @Published var pendingSessionName: String?
+    
+    private init() {}
 }
