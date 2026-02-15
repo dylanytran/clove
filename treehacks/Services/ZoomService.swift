@@ -411,6 +411,20 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
                 
                 // Start local video
                 ZoomVideoSDK.shareInstance()?.getVideoHelper()?.startVideo()
+                
+                // Start audio - this is required to activate the microphone
+                if let audioHelper = ZoomVideoSDK.shareInstance()?.getAudioHelper() {
+                    let audioResult = audioHelper.startAudio()
+                    print("ZoomService: startAudio result: \(audioResult.rawValue)")
+                    
+                    // Ensure we're unmuted
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if !self.isMuted {
+                            let unmuteResult = audioHelper.unmuteAudio(myUser)
+                            print("ZoomService: Initial unmute result: \(unmuteResult.rawValue)")
+                        }
+                    }
+                }
             }
             
             // Get existing remote users
