@@ -1,0 +1,8 @@
+{
+  "name": "treehacks-reminder-cron",
+  "version": "1.0.0",
+  "description": "Render Cron Job: send a daily reminder email (e.g. for person with dementia)",
+  "type": "module",
+  "main": "send-reminder.js",
+  "engines": { "node": ">=18" }
+}
