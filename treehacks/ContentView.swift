@@ -152,6 +152,16 @@ struct SettingsView: View {
                             Text("Clips Debug")
                         }
                     }
+                    
+                    NavigationLink {
+                        ZoomCallView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "video.fill")
+                                .foregroundColor(.green)
+                            Text("Zoom Call")
+                        }
+                    }
                 } header: {
                     Text("Debug")
                 }

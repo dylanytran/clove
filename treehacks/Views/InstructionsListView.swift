@@ -13,7 +13,7 @@ struct InstructionsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MeetingTranscript.date, order: .reverse) private var transcripts: [MeetingTranscript]
     
-    @State private var showZoomCall = false
+    @State private var showAddInstruction = false
     @State private var searchText = ""
     @State private var selectedTranscript: MeetingTranscript?
     
@@ -38,16 +38,9 @@ struct InstructionsListView: View {
                 }
             }
             .navigationTitle("Instructions")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showZoomCall = true }) {
-                        Image(systemName: "video.badge.plus")
-                    }
-                }
-            }
             .searchable(text: $searchText, prompt: "Search instructions...")
-            .sheet(isPresented: $showZoomCall) {
-                ZoomCallView()
+            .sheet(isPresented: $showAddInstruction) {
+                AddInstructionView()
             }
             .sheet(item: $selectedTranscript) { transcript in
                 TranscriptDetailView(transcript: transcript)
@@ -69,16 +62,16 @@ struct InstructionsListView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
             
-            Text("Start a video call to capture and save instructions from your doctor, caregiver, or family members.")
+            Text("Add instructions from your doctor, caregiver, or family members.")
                 .font(.body)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
             
-            Button(action: { showZoomCall = true }) {
+            Button(action: { showAddInstruction = true }) {
                 HStack {
-                    Image(systemName: "video.fill")
-                    Text("Start Video Call")
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add Instructions")
                 }
                 .font(.headline)
                 .foregroundColor(.white)
@@ -264,6 +257,67 @@ struct TranscriptDetailView: View {
                 editedInstructions = transcript.instructions
             }
         }
+    }
+}
+
+// MARK: - Add Instruction View
+
+struct AddInstructionView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var title = ""
+    @State private var instructions = ""
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Title", text: $title)
+                } header: {
+                    Text("Title")
+                } footer: {
+                    Text("e.g., Doctor's Orders, Medication Schedule")
+                }
+                
+                Section {
+                    TextEditor(text: $instructions)
+                        .frame(minHeight: 200)
+                } header: {
+                    Text("Instructions")
+                } footer: {
+                    Text("Enter the instructions you want to remember")
+                }
+            }
+            .navigationTitle("Add Instructions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveInstruction()
+                    }
+                    .disabled(title.isEmpty || instructions.isEmpty)
+                }
+            }
+        }
+    }
+    
+    private func saveInstruction() {
+        let transcript = MeetingTranscript(
+            title: title,
+            transcript: "",
+            date: Date(),
+            duration: 0,
+            participants: []
+        )
+        transcript.instructions = instructions
+        modelContext.insert(transcript)
+        dismiss()
     }
 }
 
