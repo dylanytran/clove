@@ -19,6 +19,10 @@ struct ContentView: View {
     @State private var recordingManager: RecordingManager?
     @State private var showFullCallView = false
     @State private var showMiniControls = true
+    
+    // Draggable floating call overlay state
+    @State private var floatingCallOffset: CGSize = .zero
+    @State private var floatingCallPosition: CGPoint = CGPoint(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 180)
 
     var body: some View {
         Group {
@@ -62,12 +66,13 @@ struct ContentView: View {
                 .onAppear {
                     fallDetectionService.requestNotificationPermission()
                 }
-                .overlay(alignment: .bottom) {
+                .overlay {
                     // Global floating call overlay when in Zoom session but minimized
                     if zoomService.isInSession && !showFullCallView {
-                        floatingCallOverlay
-                            .padding(.bottom, 90) // Above tab bar
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        GeometryReader { geometry in
+                            floatingCallOverlay(in: geometry)
+                        }
+                        .transition(.opacity)
                     }
                 }
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: zoomService.isInSession)
@@ -85,8 +90,13 @@ struct ContentView: View {
     
     // MARK: - Floating Call Overlay
     
-    private var floatingCallOverlay: some View {
+    private func floatingCallOverlay(in geometry: GeometryProxy) -> some View {
         HStack(spacing: 12) {
+            // Drag handle
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.white.opacity(0.4))
+                .frame(width: 4, height: 30)
+            
             // Remote video thumbnail
             if let remoteUser = zoomService.remoteUsers.first {
                 ZoomVideoView(user: remoteUser)
@@ -143,8 +153,27 @@ struct ContentView: View {
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
-        .padding(.horizontal, 16)
         .fixedSize(horizontal: false, vertical: true)
+        .offset(x: floatingCallOffset.width, y: floatingCallOffset.height)
+        .position(floatingCallPosition)
+        .gesture(
+            DragGesture(coordinateSpace: .global)
+                .onChanged { value in
+                    floatingCallOffset = value.translation
+                }
+                .onEnded { value in
+                    let newX = floatingCallPosition.x + value.translation.width
+                    let newY = floatingCallPosition.y + value.translation.height
+                    floatingCallOffset = .zero
+                    
+                    withAnimation(.interpolatingSpring(stiffness: 200, damping: 25)) {
+                        let padding: CGFloat = 100
+                        let x = max(padding, min(geometry.size.width - padding, newX))
+                        let y = max(120, min(geometry.size.height - 120, newY))
+                        floatingCallPosition = CGPoint(x: x, y: y)
+                    }
+                }
+        )
         .onTapGesture {
             showFullCallView = true
         }
@@ -250,8 +279,9 @@ struct SettingsView: View {
                     Button(action: onStartZoomCall) {
                         HStack {
                             Image(systemName: "video.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(.blue)
                             Text("Zoom Call")
+                                .foregroundColor(.primary)
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.caption)

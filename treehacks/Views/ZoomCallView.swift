@@ -38,6 +38,10 @@ struct ZoomCallView: View {
     @State private var pipPosition: CGPoint = CGPoint(x: UIScreen.main.bounds.width - 70, y: 80)
     @State private var showTranscript = false
     
+    // Draggable controls state
+    @State private var controlsOffset: CGSize = .zero
+    @State private var controlsPosition: CGPoint = CGPoint(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height - 150)
+    
     var body: some View {
         Group {
             if zoomService.isInSession && !isLeaving {
@@ -111,13 +115,16 @@ struct ZoomCallView: View {
                 // Floating local video PiP
                     floatingPiP(in: geometry)
                 
+                // Floating draggable controls bar
+                floatingControlsBar(in: geometry)
+                
                 // Floating transcript bubble
                 if showTranscript {
                     floatingTranscript
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 
-                // Glassmorphism controls overlay
+                // Top bar controls overlay (non-draggable)
                 if showControls {
                     controlsOverlay
                         .transition(.opacity)
@@ -375,67 +382,104 @@ struct ZoomCallView: View {
             
             Spacer()
             
-            // Bottom controls
-            VStack(spacing: 20) {
-                // Transcript toggle
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showTranscript.toggle()
-                    }
-                    isTranscribing = showTranscript
-                    if showTranscript { startTranscription() }
-                    else { stopTranscription() }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: showTranscript ? "text.bubble.fill" : "text.bubble")
-                        Text(showTranscript ? "Hide Transcript" : "Show Transcript")
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(.ultraThinMaterial, in: Capsule())
+            // Transcript toggle (above floating controls)
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showTranscript.toggle()
                 }
-                
-                // Main control buttons
-                HStack(spacing: 24) {
-                    // Mute
-                    controlButton(
-                        icon: isMuted ? "mic.slash.fill" : "mic.fill",
-                        label: isMuted ? "Unmute" : "Mute",
-                        isActive: isMuted,
-                        action: toggleMute
-                    )
-                    
-                    // Video
-                    controlButton(
-                        icon: isVideoOff ? "video.slash.fill" : "video.fill",
-                        label: isVideoOff ? "Start" : "Stop",
-                        isActive: isVideoOff,
-                        action: toggleVideo
-                    )
-                    
-                    // Screen Share
-                    controlButton(
-                        icon: zoomService.isScreenSharing ? "rectangle.on.rectangle.slash.fill" : "rectangle.on.rectangle",
-                        label: zoomService.isScreenSharing ? "Stop" : "Share",
-                        isActive: zoomService.isScreenSharing,
-                        activeColor: .green,
-                        action: { zoomService.toggleScreenShare() }
-                    )
-                    
-                    // End call
-                    controlButton(
-                        icon: "phone.down.fill",
-                        label: "End",
-                        isActive: true,
-                        activeColor: .red,
-                        action: { showEndCallConfirmation = true }
-                    )
+                isTranscribing = showTranscript
+                if showTranscript { startTranscription() }
+                else { stopTranscription() }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: showTranscript ? "text.bubble.fill" : "text.bubble")
+                    Text(showTranscript ? "Hide Transcript" : "Show Transcript")
                 }
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial, in: Capsule())
             }
-            .padding(.bottom, 100)
+            .padding(.bottom, 180)
         }
+    }
+    
+    // MARK: - Floating Controls Bar
+    
+    private func floatingControlsBar(in geometry: GeometryProxy) -> some View {
+        VStack(spacing: 8) {
+            // Drag handle
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.white.opacity(0.4))
+                .frame(width: 40, height: 4)
+                .padding(.top, 8)
+            
+            HStack(spacing: 20) {
+                // Mute
+                controlButton(
+                    icon: isMuted ? "mic.slash.fill" : "mic.fill",
+                    label: isMuted ? "Unmute" : "Mute",
+                    isActive: isMuted,
+                    action: toggleMute
+                )
+                
+                // Video
+                controlButton(
+                    icon: isVideoOff ? "video.slash.fill" : "video.fill",
+                    label: isVideoOff ? "Start" : "Stop",
+                    isActive: isVideoOff,
+                    action: toggleVideo
+                )
+                
+                // Screen Share
+                controlButton(
+                    icon: zoomService.isScreenSharing ? "rectangle.on.rectangle.slash.fill" : "rectangle.on.rectangle",
+                    label: zoomService.isScreenSharing ? "Stop" : "Share",
+                    isActive: zoomService.isScreenSharing,
+                    activeColor: .green,
+                    action: { zoomService.toggleScreenShare() }
+                )
+                
+                // End call
+                controlButton(
+                    icon: "phone.down.fill",
+                    label: "End",
+                    isActive: true,
+                    activeColor: .red,
+                    action: { showEndCallConfirmation = true }
+                )
+            }
+            .padding(.bottom, 8)
+        }
+        .padding(.horizontal, 24)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+        .contentShape(RoundedRectangle(cornerRadius: 30))
+        .offset(x: controlsOffset.width, y: controlsOffset.height)
+        .position(controlsPosition)
+        .simultaneousGesture(
+            DragGesture(coordinateSpace: .global)
+                .onChanged { value in
+                    controlsOffset = value.translation
+                }
+                .onEnded { value in
+                    let newX = controlsPosition.x + value.translation.width
+                    let newY = controlsPosition.y + value.translation.height
+                    controlsOffset = .zero
+                    
+                    withAnimation(.interpolatingSpring(stiffness: 200, damping: 25)) {
+                        let padding: CGFloat = 120
+                        let x = max(padding, min(geometry.size.width - padding, newX))
+                        let y = max(150, min(geometry.size.height - 100, newY))
+                        controlsPosition = CGPoint(x: x, y: y)
+                    }
+                }
+        )
     }
     
     private func controlButton(
