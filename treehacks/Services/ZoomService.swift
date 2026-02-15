@@ -72,8 +72,12 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         
         // Check if already initialized
         if isInitialized {
+            print("ZoomService: SDK already initialized, skipping")
             return
         }
+        
+        print("ZoomService: Initializing SDK...")
+        print("ZoomService: SDK Key: \(sdkKey.prefix(8))...")
         
         let initParams = ZoomVideoSDKInitParams()
         initParams.domain = "zoom.us"
@@ -82,18 +86,20 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         let sdkInitResult = ZoomVideoSDK.shareInstance()?.initialize(initParams)
         
         if sdkInitResult == .Errors_Success {
+            print("ZoomService: ✅ SDK initialized successfully")
             ZoomVideoSDK.shareInstance()?.delegate = self
             isInitialized = true
         } else if sdkInitResult == .Errors_Auth_Error {
-            print("ZoomService: ❌ SDK init failed: Auth Error")
+            print("ZoomService: ❌ SDK initialization failed: Auth Error - Check SDK credentials")
             errorMessage = "Zoom SDK authentication failed. Check credentials."
         } else if sdkInitResult == .Errors_Wrong_Usage {
             // May mean already initialized
+            print("ZoomService: SDK may already be initialized, setting delegate")
             ZoomVideoSDK.shareInstance()?.delegate = self
             isInitialized = true
         } else {
             let rawValue = sdkInitResult.map { Int($0.rawValue) } ?? 0
-            print("ZoomService: ❌ SDK init failed: \(rawValue)")
+            print("ZoomService: ❌ SDK initialization failed: \(String(describing: sdkInitResult)) rawValue: \(rawValue)")
             errorMessage = "Failed to initialize Zoom SDK: \(rawValue)"
         }
     }
@@ -180,6 +186,10 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         self.sessionName = sessionName
         let jwt = generateJWT(sessionName: sessionName)
         
+        print("ZoomService: Joining session '\(sessionName)'")
+        print("ZoomService: Password: '\(password.isEmpty ? "(none)" : "***")'")
+        print("ZoomService: JWT generated: \(jwt.prefix(50))...")
+        
         let sessionContext = ZoomVideoSDKSessionContext()
         sessionContext.sessionName = sessionName
         sessionContext.userName = userName
@@ -198,11 +208,12 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         videoOption.localVideoOn = true
         sessionContext.videoOption = videoOption
         
-        if let _ = ZoomVideoSDK.shareInstance()?.joinSession(sessionContext) {
+        if let session = ZoomVideoSDK.shareInstance()?.joinSession(sessionContext) {
+            print("ZoomService: joinSession called - waiting for delegate callback")
             sessionStartTime = Date()
             // Note: isInSession will be set by onSessionJoin delegate
         } else {
-            print("ZoomService: ❌ joinSession returned nil")
+            print("ZoomService: ❌ Failed to join session - joinSession returned nil")
             errorMessage = "Failed to join session"
             joinError = "Failed to start session"
         }
@@ -211,6 +222,8 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     /// Leave the current session
     func leaveSession() -> MeetingTranscriptData? {
         guard isInSession else { return nil }
+        
+        print("ZoomService: Leaving session '\(sessionName)'")
         
         // Calculate duration
         let duration = sessionStartTime.map { Date().timeIntervalSince($0) } ?? 0
@@ -227,7 +240,6 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         // Reset state BEFORE leaving session to prevent UI accessing invalid objects
         localUser = nil
         remoteUsers = []
-        activeShareUser = nil
         isInSession = false
         
         // Stop screen sharing if active
@@ -246,7 +258,9 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         sessionStartTime = nil
         isMuted = false
         isVideoOn = true
+        activeShareUser = nil
         
+        print("ZoomService: ✅ Left session, transcript saved")
         return transcriptData
     }
     
@@ -257,6 +271,7 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
         let entry = "[\(timestamp)] \(speaker): \(text)\n"
         currentTranscript += entry
+        print("ZoomService: Transcript += \"\(text.prefix(50))...\"")
     }
     
     // MARK: - Audio/Video Controls
@@ -265,23 +280,33 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     @Published var isVideoOn = true
     
     func toggleMute() {
-        guard let audioHelper = ZoomVideoSDK.shareInstance()?.getAudioHelper() else { return }
+        guard let audioHelper = ZoomVideoSDK.shareInstance()?.getAudioHelper() else {
+            print("ZoomService: No audio helper available")
+            return
+        }
         
         if isMuted {
-            _ = audioHelper.unmuteAudio(localUser)
+            let result = audioHelper.unmuteAudio(localUser)
+            print("ZoomService: Unmute result: \(result)")
         } else {
-            _ = audioHelper.muteAudio(localUser)
+            let result = audioHelper.muteAudio(localUser)
+            print("ZoomService: Mute result: \(result)")
         }
         isMuted.toggle()
     }
     
     func toggleVideo() {
-        guard let videoHelper = ZoomVideoSDK.shareInstance()?.getVideoHelper() else { return }
+        guard let videoHelper = ZoomVideoSDK.shareInstance()?.getVideoHelper() else {
+            print("ZoomService: No video helper available")
+            return
+        }
         
         if isVideoOn {
-            _ = videoHelper.stopVideo()
+            let result = videoHelper.stopVideo()
+            print("ZoomService: Stop video result: \(result)")
         } else {
-            _ = videoHelper.startVideo()
+            let result = videoHelper.startVideo()
+            print("ZoomService: Start video result: \(result)")
         }
         isVideoOn.toggle()
     }
@@ -297,18 +322,26 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
             guard let self = self else { return }
             
             guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
+                print("ZoomService: ❌ No share helper available")
                 self.shareError = "Share helper not available"
                 return
             }
             
+            print("ZoomService: Checking screen share support...")
+            print("ZoomService: isSupportInAppScreenShare = \(shareHelper.isSupportInAppScreenShare())")
+            print("ZoomService: isSharingOut = \(shareHelper.isSharingOut())")
+            print("ZoomService: isOtherSharing = \(shareHelper.isOtherSharing())")
+            
             // Check if someone else is already sharing
             if shareHelper.isOtherSharing() {
+                print("ZoomService: ❌ Another user is already sharing")
                 self.shareError = "Another user is already sharing"
                 return
             }
             
             // Check if already sharing
             if shareHelper.isSharingOut() {
+                print("ZoomService: Already sharing, ignoring")
                 self.isScreenSharing = true
                 return
             }
@@ -316,14 +349,18 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
             // Try in-app screen share
             if shareHelper.isSupportInAppScreenShare() {
                 let result = shareHelper.startInAppScreenShare()
+                print("ZoomService: startInAppScreenShare result: \(result) (\(self.describeError(result)))")
                 
                 if result == .Errors_Success {
                     self.isScreenSharing = true
                     self.shareError = nil
+                    print("ZoomService: ✅ Screen sharing started successfully")
                 } else {
                     self.shareError = "Failed: \(self.describeError(result))"
+                    print("ZoomService: ❌ Failed to start screen share: \(self.describeError(result))")
                 }
             } else {
+                print("ZoomService: ❌ In-app screen share not supported")
                 self.shareError = "Screen sharing not supported on this device"
             }
         }
@@ -332,9 +369,14 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     func stopScreenShare() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else { return }
             
-            _ = shareHelper.stopShare()
+            guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
+                print("ZoomService: No share helper available")
+                return
+            }
+            
+            let result = shareHelper.stopShare()
+            print("ZoomService: Stop screen share result: \(result)")
             self.isScreenSharing = false
             self.shareError = nil
         }
@@ -342,6 +384,7 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     
     func toggleScreenShare() {
         guard isInSession else {
+            print("ZoomService: Cannot toggle screen share - not in session")
             shareError = "Not in a session"
             return
         }
@@ -358,6 +401,7 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     
     func onSessionJoin() {
         DispatchQueue.main.async {
+            print("ZoomService: ✅ onSessionJoin - Successfully joined session")
             self.isInSession = true
             self.joinError = nil
             
@@ -365,6 +409,7 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
             if let session = ZoomVideoSDK.shareInstance()?.getSession(),
                let myUser = session.getMySelf() {
                 self.localUser = myUser
+                print("ZoomService: Local user set: \(myUser.getName() ?? "unknown")")
                 
                 // Start local video
                 ZoomVideoSDK.shareInstance()?.getVideoHelper()?.startVideo()
@@ -385,6 +430,7 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         }
         
         self.remoteUsers = allUsers
+        print("ZoomService: Remote users count: \(allUsers.count)")
     }
     
     private func checkForActiveShare() {
@@ -392,10 +438,14 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
             return
         }
         
+        print("ZoomService: Checking for active shares...")
+        print("ZoomService: isOtherSharing = \(shareHelper.isOtherSharing())")
+        
         if shareHelper.isOtherSharing() {
             // Find who is sharing
             for user in remoteUsers {
                 if let shareActions = user.getShareActionList(), !shareActions.isEmpty {
+                    print("ZoomService: Found active share from: \(user.getName() ?? "unknown")")
                     self.activeShareUser = user
                     return
                 }
@@ -405,6 +455,7 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     
     func onSessionLeave() {
         DispatchQueue.main.async {
+            print("ZoomService: onSessionLeave - Left session")
             // Clear all user references FIRST to prevent UI accessing invalid objects
             self.localUser = nil
             self.remoteUsers = []
@@ -432,6 +483,7 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         DispatchQueue.main.async {
             for user in users {
                 if let name = user.getName() {
+                    print("ZoomService: User joined: \(name)")
                     if !self.participants.contains(name) {
                         self.participants.append(name)
                     }
@@ -449,10 +501,12 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
         DispatchQueue.main.async {
             for user in users {
                 if let name = user.getName() {
+                    print("ZoomService: User left: \(name)")
                     self.participants.removeAll { $0 == name }
                 }
                 // Clear active share user if they left
                 if self.activeShareUser?.getID() == user.getID() {
+                    print("ZoomService: Active share user left, clearing")
                     self.activeShareUser = nil
                 }
             }
@@ -464,20 +518,29 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     
     func onUserShareStatusChanged(_ helper: ZoomVideoSDKShareHelper?, user: ZoomVideoSDKUser?, status: ZoomVideoSDKReceiveSharingStatus) {
         DispatchQueue.main.async {
+            let userName = user?.getName() ?? "Unknown"
+            print("ZoomService: ===== SHARE STATUS CHANGED =====")
+            print("ZoomService: User: \(userName), Status: \(status.rawValue)")
+            print("ZoomService: isOtherSharing: \(helper?.isOtherSharing() ?? false)")
+            print("ZoomService: Share actions count: \(user?.getShareActionList()?.count ?? 0)")
+            
             // Check if this is our own share status
             if let session = ZoomVideoSDK.shareInstance()?.getSession(),
                let myUser = session.getMySelf(),
                user?.getID() == myUser.getID() {
                 // Our own share status changed
                 self.isScreenSharing = (status == .start)
+                print("ZoomService: My own share status changed to: \(self.isScreenSharing)")
             }
             
             // Track who is sharing for viewing their share
             if status == .start {
+                print("ZoomService: Setting activeShareUser to: \(userName)")
                 self.activeShareUser = user
             } else if status == .stop {
                 // If this user stopped sharing, clear active share user
                 if self.activeShareUser?.getID() == user?.getID() {
+                    print("ZoomService: Clearing activeShareUser")
                     self.activeShareUser = nil
                 }
             }
