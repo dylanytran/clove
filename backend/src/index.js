@@ -13,7 +13,7 @@ app.use(express.json({ limit: '10mb' }));
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Routes
@@ -22,10 +22,10 @@ app.use('/api/analysis', analysisRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: err.message || 'Internal server error' });
+    console.error('Error:', err);
+    res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Iris API running on port ${PORT}`);
+    console.log(`🚀 Iris API running on port ${PORT}`);
 });
