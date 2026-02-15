@@ -27,7 +27,7 @@ struct MainCameraView: View {
             ARCameraContainerView(onFrameCaptured: { pixelBuffer, timestamp in
                 clipManager.processFrame(pixelBuffer, timestamp: timestamp)
             })
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: .top)
 
             // UI Controls overlay
             VStack {
