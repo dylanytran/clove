@@ -1,8 +1,12 @@
 const { Pool } = require('pg');
 
+// Enable SSL for external connections (Render requires SSL)
+const isExternalConnection = process.env.DATABASE_URL?.includes('render.com');
+const useSSL = process.env.NODE_ENV === 'production' || isExternalConnection;
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: useSSL ? { rejectUnauthorized: false } : false
 });
 
 pool.on('error', (err) => {
