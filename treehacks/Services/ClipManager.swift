@@ -213,6 +213,7 @@ final class ClipManager: ObservableObject {
     }
 
     /// ARKit delivers frames in landscape-right. Return the transform so the written video is upright for the user.
+    /// Includes an extra 180° so playback is not upside down.
     private func videoTransformForCurrentOrientation() -> CGAffineTransform {
         var orientation: UIDeviceOrientation = .portrait
         if Thread.isMainThread {
@@ -222,20 +223,22 @@ final class ClipManager: ObservableObject {
                 orientation = UIDevice.current.orientation
             }
         }
+        let base: CGAffineTransform
         switch orientation {
         case .portrait:
-            return CGAffineTransform(rotationAngle: .pi / 2)
+            base = CGAffineTransform(rotationAngle: .pi / 2)
         case .portraitUpsideDown:
-            return CGAffineTransform(rotationAngle: -.pi / 2)
+            base = CGAffineTransform(rotationAngle: -.pi / 2)
         case .landscapeRight:
-            return .identity
+            base = .identity
         case .landscapeLeft:
-            return CGAffineTransform(rotationAngle: .pi)
+            base = CGAffineTransform(rotationAngle: .pi)
         case .faceUp, .faceDown, .unknown:
-            return CGAffineTransform(rotationAngle: .pi / 2)
+            base = CGAffineTransform(rotationAngle: .pi / 2)
         @unknown default:
-            return CGAffineTransform(rotationAngle: .pi / 2)
+            base = CGAffineTransform(rotationAngle: .pi / 2)
         }
+        return base.concatenating(CGAffineTransform(rotationAngle: .pi))
     }
 
     private func writeFrame(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) {

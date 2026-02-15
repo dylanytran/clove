@@ -32,6 +32,7 @@ struct MainCameraView: View {
     @State private var snapshotClips: [IndexedClip] = []
     @State private var showResult = false
     @State private var showNoResult = false
+    @State private var recallVideoPaused = false
 
     // Blinking animation
     @State private var dotVisible = true
@@ -135,10 +136,22 @@ struct MainCameraView: View {
                         }
 
                         if let player = player {
-                            VideoPlayer(player: player)
-                                .frame(width: 256, height: 192)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                            ZStack {
+                                VideoPlayer(player: player)
+                                    .frame(width: 256, height: 192)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                if recallVideoPaused {
+                                    Image(systemName: "play.circle.fill")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                recallVideoPaused.toggle()
+                                if recallVideoPaused { player.pause() } else { player.play() }
+                            }
+                            .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
                         }
                     }
                     .padding(.leading, 16)
@@ -282,6 +295,7 @@ struct MainCameraView: View {
                     let looper = AVPlayerLooper(player: queuePlayer, templateItem: item)
                     playerLooper = looper
                     player = queuePlayer
+                    recallVideoPaused = false
                     queuePlayer.play()
 
                     AppSpeechManager.shared.speak(firstSentence(of: response.answer))
@@ -315,6 +329,7 @@ struct MainCameraView: View {
         player?.pause()
         player = nil
         playerLooper = nil
+        recallVideoPaused = false
         searchResult = nil
         assistantAnswer = nil
         showResult = false
