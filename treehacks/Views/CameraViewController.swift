@@ -189,7 +189,7 @@ extension CameraViewController {
             print("[FaceDetection] Face #\(faceIndex + 1): could not extract features")
             return
         }
-        print("[FaceDetection] Face #\(faceIndex + 1) faceEmbedding: \(features)")
+        // print("[FaceDetection] Face #\(faceIndex + 1) faceEmbedding: \(features)")
     }
 
     /// Match a new detection to an existing tracked face by spatial proximity.
