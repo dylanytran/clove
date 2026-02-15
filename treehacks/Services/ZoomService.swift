@@ -317,56 +317,78 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     @Published var shareError: String?
     
     func startScreenShare() {
-        guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
-            print("ZoomService: ❌ No share helper available")
-            shareError = "Share helper not available"
-            return
-        }
-        
-        print("ZoomService: Checking screen share support...")
-        print("ZoomService: isSupportInAppScreenShare = \(shareHelper.isSupportInAppScreenShare())")
-        print("ZoomService: isSharingOut = \(shareHelper.isSharingOut())")
-        print("ZoomService: isOtherSharing = \(shareHelper.isOtherSharing())")
-        
-        // Check if someone else is already sharing
-        if shareHelper.isOtherSharing() {
-            print("ZoomService: ❌ Another user is already sharing")
-            shareError = "Another user is already sharing"
-            return
-        }
-        
-        // Try in-app screen share first
-        if shareHelper.isSupportInAppScreenShare() {
-            let result = shareHelper.startInAppScreenShare()
-            print("ZoomService: startInAppScreenShare result: \(result) (\(describeError(result)))")
+        // Must be called on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             
-            if result == .Errors_Success {
-                isScreenSharing = true
-                shareError = nil
-                print("ZoomService: ✅ Screen sharing started successfully")
-            } else {
-                shareError = "Failed: \(describeError(result))"
-                print("ZoomService: ❌ Failed to start screen share: \(describeError(result))")
+            guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
+                print("ZoomService: ❌ No share helper available")
+                self.shareError = "Share helper not available"
+                return
             }
-        } else {
-            print("ZoomService: ❌ In-app screen share not supported")
-            shareError = "Screen sharing not supported on this device"
+            
+            print("ZoomService: Checking screen share support...")
+            print("ZoomService: isSupportInAppScreenShare = \(shareHelper.isSupportInAppScreenShare())")
+            print("ZoomService: isSharingOut = \(shareHelper.isSharingOut())")
+            print("ZoomService: isOtherSharing = \(shareHelper.isOtherSharing())")
+            
+            // Check if someone else is already sharing
+            if shareHelper.isOtherSharing() {
+                print("ZoomService: ❌ Another user is already sharing")
+                self.shareError = "Another user is already sharing"
+                return
+            }
+            
+            // Check if already sharing
+            if shareHelper.isSharingOut() {
+                print("ZoomService: Already sharing, ignoring")
+                self.isScreenSharing = true
+                return
+            }
+            
+            // Try in-app screen share
+            if shareHelper.isSupportInAppScreenShare() {
+                let result = shareHelper.startInAppScreenShare()
+                print("ZoomService: startInAppScreenShare result: \(result) (\(self.describeError(result)))")
+                
+                if result == .Errors_Success {
+                    self.isScreenSharing = true
+                    self.shareError = nil
+                    print("ZoomService: ✅ Screen sharing started successfully")
+                } else {
+                    self.shareError = "Failed: \(self.describeError(result))"
+                    print("ZoomService: ❌ Failed to start screen share: \(self.describeError(result))")
+                }
+            } else {
+                print("ZoomService: ❌ In-app screen share not supported")
+                self.shareError = "Screen sharing not supported on this device"
+            }
         }
     }
     
     func stopScreenShare() {
-        guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
-            print("ZoomService: No share helper available")
-            return
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
+                print("ZoomService: No share helper available")
+                return
+            }
+            
+            let result = shareHelper.stopShare()
+            print("ZoomService: Stop screen share result: \(result)")
+            self.isScreenSharing = false
+            self.shareError = nil
         }
-        
-        let result = shareHelper.stopShare()
-        print("ZoomService: Stop screen share result: \(result)")
-        isScreenSharing = false
-        shareError = nil
     }
     
     func toggleScreenShare() {
+        guard isInSession else {
+            print("ZoomService: Cannot toggle screen share - not in session")
+            shareError = "Not in a session"
+            return
+        }
+        
         shareError = nil  // Clear previous error
         if isScreenSharing {
             stopScreenShare()

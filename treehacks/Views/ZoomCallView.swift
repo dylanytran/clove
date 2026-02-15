@@ -156,19 +156,32 @@ struct ZoomCallView: View {
                 
                 // Main view - show shared screen if someone is sharing, otherwise show remote video
                 if zoomService.isScreenSharing {
-                    // I'm sharing my screen - show preview of what I'm sharing
-                    VStack {
-                        ZoomLocalSharePreview()
+                    // I'm sharing my screen - show simple indicator (no complex UIKit views)
+                    VStack(spacing: 16) {
+                        Image(systemName: "rectangle.inset.filled.and.person.filled")
+                            .font(.system(size: 60))
+                            .foregroundColor(.white)
+                        
+                        Text("Screen Share Active")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        
+                        Text("Others can see your app")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.7))
+                        
                         HStack {
                             Image(systemName: "rectangle.on.rectangle.fill")
                                 .foregroundColor(.green)
-                            Text("You are sharing your screen")
+                            Text("Sharing")
                                 .font(.caption)
                                 .foregroundColor(.white)
                         }
-                        .padding(4)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(Color.green.opacity(0.6))
-                        .cornerRadius(4)
+                        .cornerRadius(8)
                     }
                 } else if let shareUser = zoomService.activeShareUser {
                     // Someone else is sharing their screen
