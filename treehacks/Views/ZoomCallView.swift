@@ -109,7 +109,7 @@ struct ZoomCallView: View {
                 fullScreenVideoBackground
                 
                 // Floating local video PiP
-                floatingPiP(in: geometry)
+                    floatingPiP(in: geometry)
                 
                 // Floating transcript bubble
                 if showTranscript {
@@ -156,13 +156,21 @@ struct ZoomCallView: View {
     // MARK: - Full Screen Video Background
     
     private var fullScreenVideoBackground: some View {
-        Group {
-            if let shareUser = zoomService.activeShareUser {
+        let _ = print("ZoomCallView: fullScreenVideoBackground - activeShareUser: \(zoomService.activeShareUser?.getName() ?? "nil"), activeShareUserId: \(zoomService.activeShareUserId), isScreenSharing: \(zoomService.isScreenSharing)")
+        return Group {
+            if zoomService.isScreenSharing {
+                // I'm sharing my screen - show simple indicator (not remote video to avoid resource conflict)
+                sharingActiveBackground
+            } else if let shareUser = zoomService.activeShareUser {
                 // Someone is sharing their screen
+                let _ = print("ZoomCallView: Showing ZoomShareView for user: \(shareUser.getName() ?? "unknown")")
                 ZoomShareView(user: shareUser)
+                    .id("share-\(zoomService.activeShareUserId)") // Force view recreation when share user changes
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let remoteUser = zoomService.remoteUsers.first {
                 // Remote participant video fills screen
                 ZoomVideoView(user: remoteUser)
+                    .id("video-\(remoteUser.getID())") // Force view recreation on user change
             } else {
                 // Waiting for others - ambient background
                 ZStack {
@@ -199,6 +207,47 @@ struct ZoomCallView: View {
                             .foregroundColor(.white.opacity(0.8))
                     }
                 }
+            }
+        }
+    }
+    
+    // MARK: - Sharing Active Background
+    
+    private var sharingActiveBackground: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.1, green: 0.2, blue: 0.1), Color.black],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            
+            VStack(spacing: 20) {
+                Image(systemName: "rectangle.inset.filled.and.person.filled")
+                    .font(.system(size: 80, weight: .thin))
+                    .foregroundStyle(.linearGradient(colors: [.green, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .symbolEffect(.pulse, options: .repeating)
+                
+                Text("Screen Share Active")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                
+                Text("Others can see your app")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+                
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                    Text("Sharing")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.green.opacity(0.3))
+                .cornerRadius(8)
             }
         }
     }

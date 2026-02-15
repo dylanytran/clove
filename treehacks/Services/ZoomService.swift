@@ -27,7 +27,12 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     @Published var joinError: String?
     @Published var remoteUsers: [ZoomVideoSDKUser] = []
     @Published var localUser: ZoomVideoSDKUser?
-    @Published var activeShareUser: ZoomVideoSDKUser?
+    @Published var activeShareUser: ZoomVideoSDKUser? {
+        didSet {
+            activeShareUserId = Int(activeShareUser?.getID() ?? 0)
+        }
+    }
+    @Published var activeShareUserId: Int = 0  // Tracks share user changes for SwiftUI
     
     // MARK: - Configuration
     
@@ -317,9 +322,13 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     @Published var shareError: String?
     
     func startScreenShare() {
-        // Must be called on main thread
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+            
+            guard self.isInSession else {
+                self.shareError = "Not in a session"
+                return
+            }
             
             guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
                 print("ZoomService: ❌ No share helper available")
@@ -327,41 +336,31 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
                 return
             }
             
-            print("ZoomService: Checking screen share support...")
-            print("ZoomService: isSupportInAppScreenShare = \(shareHelper.isSupportInAppScreenShare())")
-            print("ZoomService: isSharingOut = \(shareHelper.isSharingOut())")
-            print("ZoomService: isOtherSharing = \(shareHelper.isOtherSharing())")
-            
-            // Check if someone else is already sharing
             if shareHelper.isOtherSharing() {
                 print("ZoomService: ❌ Another user is already sharing")
                 self.shareError = "Another user is already sharing"
                 return
             }
             
-            // Check if already sharing
             if shareHelper.isSharingOut() {
-                print("ZoomService: Already sharing, ignoring")
+                print("ZoomService: Already sharing")
                 self.isScreenSharing = true
                 return
             }
             
-            // Try in-app screen share
             if shareHelper.isSupportInAppScreenShare() {
                 let result = shareHelper.startInAppScreenShare()
-                print("ZoomService: startInAppScreenShare result: \(result) (\(self.describeError(result)))")
-                
+                print("ZoomService: startInAppScreenShare result: \(result)")
                 if result == .Errors_Success {
                     self.isScreenSharing = true
                     self.shareError = nil
-                    print("ZoomService: ✅ Screen sharing started successfully")
+                    print("ZoomService: ✅ Screen sharing started")
                 } else {
                     self.shareError = "Failed: \(self.describeError(result))"
-                    print("ZoomService: ❌ Failed to start screen share: \(self.describeError(result))")
+                    print("ZoomService: ❌ Failed to start screen share")
                 }
             } else {
-                print("ZoomService: ❌ In-app screen share not supported")
-                self.shareError = "Screen sharing not supported on this device"
+                self.shareError = "Screen sharing not supported"
             }
         }
     }
@@ -371,7 +370,6 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
             guard let self = self else { return }
             
             guard let shareHelper = ZoomVideoSDK.shareInstance()?.getShareHelper() else {
-                print("ZoomService: No share helper available")
                 return
             }
             
@@ -516,27 +514,35 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
     
     // MARK: - Share Delegate Methods
     
-    func onUserShareStatusChanged(_ helper: ZoomVideoSDKShareHelper?, user: ZoomVideoSDKUser?, status: ZoomVideoSDKReceiveSharingStatus) {
+    func onUserShareStatusChanged(_ helper: ZoomVideoSDKShareHelper?, user: ZoomVideoSDKUser?, shareAction: ZoomVideoSDKShareAction?) {
         DispatchQueue.main.async {
             let userName = user?.getName() ?? "Unknown"
+            let userId = user?.getID() ?? 0
+            let status = shareAction?.getShareStatus() ?? .stop
             print("ZoomService: ===== SHARE STATUS CHANGED =====")
-            print("ZoomService: User: \(userName), Status: \(status.rawValue)")
+            print("ZoomService: User: \(userName) (ID: \(userId)), Status: \(status.rawValue)")
             print("ZoomService: isOtherSharing: \(helper?.isOtherSharing() ?? false)")
+            print("ZoomService: isSharingOut: \(helper?.isSharingOut() ?? false)")
             print("ZoomService: Share actions count: \(user?.getShareActionList()?.count ?? 0)")
             
             // Check if this is our own share status
             if let session = ZoomVideoSDK.shareInstance()?.getSession(),
-               let myUser = session.getMySelf(),
-               user?.getID() == myUser.getID() {
-                // Our own share status changed
-                self.isScreenSharing = (status == .start)
-                print("ZoomService: My own share status changed to: \(self.isScreenSharing)")
+               let myUser = session.getMySelf() {
+                let isMyShare = user?.getID() == myUser.getID()
+                print("ZoomService: My ID: \(myUser.getID()), Is my share: \(isMyShare)")
+                
+                if isMyShare {
+                    // Our own share status changed
+                    self.isScreenSharing = (status == .start)
+                    print("ZoomService: My own share status changed to: \(self.isScreenSharing)")
+                }
             }
             
             // Track who is sharing for viewing their share
             if status == .start {
-                print("ZoomService: Setting activeShareUser to: \(userName)")
+                print("ZoomService: Setting activeShareUser to: \(userName) (ID: \(userId))")
                 self.activeShareUser = user
+                print("ZoomService: activeShareUserId is now: \(self.activeShareUserId)")
             } else if status == .stop {
                 // If this user stopped sharing, clear active share user
                 if self.activeShareUser?.getID() == user?.getID() {
@@ -544,6 +550,9 @@ class ZoomService: NSObject, ObservableObject, ZoomVideoSDKDelegate {
                     self.activeShareUser = nil
                 }
             }
+            
+            // Force objectWillChange to ensure SwiftUI updates
+            self.objectWillChange.send()
         }
     }
     
