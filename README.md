@@ -1,3 +1,7 @@
+## Demo Video 🎥
+
+[![Clove Demo](https://img.youtube.com/vi/E9CYBohndM8/0.jpg)](https://youtu.be/E9CYBohndM8)
+
 ## Inspiration
 
 “Where did I put my keys?” “Who is this person?” “What was I doing a moment ago?” Over 55 million people worldwide live with dementia, and millions more elderly adults struggle with memory, safety, and independence. The rapidly growing development in wearable technology inspired us to think about how spatial computing can be applied to tackle the problems that the elderly face today. Our curiosity led us to build Clove, an AI-powered augmented reality application to help elders recall information, recognize loved ones, and stay safe through real-time support. 
