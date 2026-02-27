@@ -1,4 +1,4 @@
-## Demo Video 🎥
+## YouTube Demo
 
 [![Clove Demo](https://img.youtube.com/vi/E9CYBohndM8/0.jpg)](https://youtu.be/E9CYBohndM8)
 
